@@ -95,6 +95,7 @@ class BILKLeader:
         self.last_time = time.time()
         self.debug_counter = 0
         self.socket = None
+        self.angle_offsets = [0.0] * 4  # Calibration offsets to zero encoders at rest
 
     def print_debug_frame(self, frame, counter):
         pre = frame[0:4]
@@ -164,6 +165,39 @@ class BILKLeader:
         except Exception:
             pass
 
+    def calibrate_encoders(self):
+        """
+        Calibrate encoders by reading baseline angles for 2 seconds.
+        Computes average offsets to zero encoders at rest position.
+        """
+        if self.debug:
+            print("DEBUG MODE: Skipping encoder calibration.")
+            return
+
+        print("\n=== CALIBRATION: Reading encoder baseline for 2 seconds ===")
+        print("Please keep the leader arm stationary...")
+
+        t_start = time.time()
+        samples = [[] for _ in range(4)]  # One list per encoder
+
+        while time.time() - t_start < 2.0:
+            for i, enc in enumerate(self.encoders):
+                ok, angle = enc.read_angle()
+                if ok:
+                    samples[i].append(angle)
+            time.sleep(0.01)  # Small delay to avoid overwhelming I2C bus
+
+        # Compute average offsets
+        for i in range(4):
+            if len(samples[i]) > 0:
+                self.angle_offsets[i] = sum(samples[i]) / len(samples[i])
+                print(f"Encoder {i}: {len(samples[i])} samples, offset = {self.angle_offsets[i]:.6f} rad ({self.angle_offsets[i] * 180.0 / 3.14159265359:.3f} deg)")
+            else:
+                print(f"Encoder {i}: WARNING - No samples collected! Using zero offset.")
+                self.angle_offsets[i] = 0.0
+
+        print("Calibration complete.\n")
+
     def read_encoders(self):
         if self.debug:
             self.last_angles = [0.0] * 4
@@ -177,9 +211,11 @@ class BILKLeader:
         for i, enc in enumerate(self.encoders):
             ok, angle = enc.read_angle()
             if ok:
-                vel = (angle - self.last_angles[i]) / dt if dt > 0 else 0.0
+                # Subtract calibration offset to zero encoder at rest
+                angle_zeroed = angle - self.angle_offsets[i]
+                vel = (angle_zeroed - self.last_angles[i]) / dt if dt > 0 else 0.0
                 self.last_vel[i] = vel
-                self.last_angles[i] = angle
+                self.last_angles[i] = angle_zeroed
             else:
                 print(f"Encoder {i} read failed")
 
@@ -201,9 +237,12 @@ class BILKLeader:
             print("Initializing encoders...")
             for i, enc in enumerate(self.encoders):
                 ok, ang = enc.read_angle()
-                print(f"Ch{i}: {'OK' if ok else 'FAIL'} -> {ang:.3f}")
+                print(f"Ch{i}: {'OK' if ok else 'FAIL'} -> {ang:.3f} rad")
         else:
             print("DEBUG MODE: Encoders init skipped -> mock data active.")
+
+        # Calibrate encoders to zero at rest position
+        self.calibrate_encoders()
 
         self.setup_network()
         print(f"Running at {SAMPLE_RATE_HZ} Hz...\n")
