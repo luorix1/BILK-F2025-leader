@@ -16,8 +16,8 @@ import argparse
 I2C_BUS = 1
 PCA9548A_ADDR = 0x70
 AS5600_ADDR = 0x36
-SAMPLE_RATE_HZ = 1000
-SAMPLE_US = 1000
+SAMPLE_RATE_HZ = 500  # Match follower control rate
+SAMPLE_US = 2000      # 500 Hz = 2000 microseconds
 
 # AS5600 Registers
 AS5600_REG_RAW_ANGLE_HI = 0x0C
