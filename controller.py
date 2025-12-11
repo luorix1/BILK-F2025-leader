@@ -233,9 +233,6 @@ class BILKLeader:
                 angle_zeroed = angle - self.angle_offsets[i]
                 # Wrap to [-π, π] to avoid discontinuities at ±180°
                 angle_zeroed = wrap_to_pi(angle_zeroed)
-                # Invert joint 2 (index 1) - it reads positive when clockwise, others are opposite
-                if i == 1:
-                    angle_zeroed = -angle_zeroed
                 vel = (angle_zeroed - self.last_angles[i]) / dt if dt > 0 else 0.0
                 self.last_vel[i] = vel
                 self.last_angles[i] = angle_zeroed
