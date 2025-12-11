@@ -9,6 +9,7 @@ import struct
 import signal
 import sys
 import argparse
+import math
 
 # -------------------------------
 # Hardware Configuration
@@ -30,6 +31,23 @@ BILK_MSG_LEADER_STATE = 0x01
 RAD_PER_COUNT = 2 * 3.14159265359 / 4096.0
 
 HOST_IP = "172.26.7.204"
+
+
+# ================================================================
+# Utility Functions
+# ================================================================
+def wrap_to_pi(angle_rad):
+    """
+    Wrap angle in radians to [-π, π] range to avoid discontinuities.
+    """
+    return angle_rad - 2 * math.pi * math.floor((angle_rad + math.pi) / (2 * math.pi))
+
+
+def wrap_to_180(angle_deg):
+    """
+    Wrap angle in degrees to [-180, 180] range to avoid discontinuities.
+    """
+    return angle_deg - 360.0 * math.floor((angle_deg + 180.0) / 360.0)
 HOST_PORT = 9001
 USB_SERIAL_PORT = "/dev/ttyUSB0"
 
@@ -213,6 +231,8 @@ class BILKLeader:
             if ok:
                 # Subtract calibration offset to zero encoder at rest
                 angle_zeroed = angle - self.angle_offsets[i]
+                # Wrap to [-π, π] to avoid discontinuities at ±180°
+                angle_zeroed = wrap_to_pi(angle_zeroed)
                 vel = (angle_zeroed - self.last_angles[i]) / dt if dt > 0 else 0.0
                 self.last_vel[i] = vel
                 self.last_angles[i] = angle_zeroed
