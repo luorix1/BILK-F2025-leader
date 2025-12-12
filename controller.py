@@ -109,7 +109,7 @@ class BILKLeader:
 
     # --------------------------------------------------------
     def calibrate(self):
-        print("[Leader] Calibrating encoders (2 s)… keep arm still")
+        print("[Leader] Calibrating encoders (2 s)... keep arm still")
         samples = [[] for _ in range(4)]
         t0 = time.time()
 
