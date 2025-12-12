@@ -109,7 +109,7 @@ class BILKLeader:
 
     # --------------------------------------------------------
     def calibrate(self):
-        print("[Leader] Calibrating encoders (2 s)… keep arm still")
+        print("[Leader] Calibrating encoders (2 s)... keep arm still")
         samples = [[] for _ in range(4)]
         t0 = time.time()
 
@@ -165,7 +165,7 @@ class BILKLeader:
     # --------------------------------------------------------
     def run(self):
         self.calibrate()
-        print(f"[Leader] UDP → {HOST_IP}:{HOST_PORT} @ {SAMPLE_RATE_HZ} Hz")
+        print(f"[Leader] UDP -> {HOST_IP}:{HOST_PORT} @ {SAMPLE_RATE_HZ} Hz")
 
         try:
             while True:
