@@ -166,7 +166,7 @@ class BILKLeader:
         if not self.debug:
             self.calibrate()
 
-        print(f"[Leader] Sending UDP → {HOST_IP}:{HOST_PORT} @ {SAMPLE_RATE_HZ} Hz")
+        print(f"[Leader] Sending UDP -> {HOST_IP}:{HOST_PORT} at {SAMPLE_RATE_HZ} Hz")
 
         try:
             while True:
