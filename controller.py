@@ -137,7 +137,7 @@ class BILKLeader:
         for i, enc in enumerate(self.encoders):
             ok, ang = enc.read_angle()
             if ok:
-                ang = wrap_to_pi(ang - self.angle_offsets[i])
+                ang = ang - self.angle_offsets[i]
                 vel = (ang - self.last_angles[i]) / dt if dt > 0 else 0.0
                 self.last_angles[i] = ang
                 self.last_vel[i] = vel
