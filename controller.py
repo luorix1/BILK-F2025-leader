@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 controller.py — BILK Leader
-Sends joint angles (rad) + velocities over UDP
-Packet format MUST match follower.py
+Normal hardware operation + optional packet debug printing
 """
 
 import smbus2 as smbus
@@ -12,6 +11,7 @@ import struct
 import signal
 import argparse
 import math
+import binascii
 
 # ============================================================
 # Hardware configuration
@@ -84,7 +84,8 @@ class AS5600Encoder:
             angle = raw * RAD_PER_COUNT
             self.last_angle = angle
             return True, angle
-        except Exception:
+        except Exception as e:
+            print(f"[I2C ERROR] ch{self.channel}: {e}")
             return False, self.last_angle
 
 
@@ -96,20 +97,19 @@ class BILKLeader:
         self.debug = debug
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        if not debug:
-            self.bus = smbus.SMBus(I2C_BUS)
-            self.encoders = [AS5600Encoder(self.bus, i) for i in range(4)]
-        else:
-            self.encoders = [None] * 4
+        self.bus = smbus.SMBus(I2C_BUS)
+        self.encoders = [AS5600Encoder(self.bus, i) for i in range(4)]
 
         self.last_angles = [0.0] * 4
         self.last_vel = [0.0] * 4
         self.angle_offsets = [0.0] * 4
         self.last_time = time.time()
 
+        self.print_counter = 0
+
     # --------------------------------------------------------
     def calibrate(self):
-        print("[Leader] Calibrating encoders (2 s)... keep arm still")
+        print("[Leader] Calibrating encoders (2 s)… keep arm still")
         samples = [[] for _ in range(4)]
         t0 = time.time()
 
@@ -149,8 +149,8 @@ class BILKLeader:
         payload = struct.pack("<Q", timestamp_us)
         payload += struct.pack("<ffff", *self.last_angles)
         payload += struct.pack("<ffff", *self.last_vel)
-        payload += struct.pack("B", 0)      # buttons
-        payload += b"\x00\x00\x00"           # padding
+        payload += struct.pack("B", 0)
+        payload += b"\x00\x00\x00"
 
         header = struct.pack("BBH",
                              BILK_VERSION,
@@ -158,25 +158,34 @@ class BILKLeader:
                              len(payload))
 
         crc = crc16_ccitt_false(header + payload)
+        frame = BILK_PRE + header + payload + struct.pack("<H", crc)
 
-        return BILK_PRE + header + payload + struct.pack("<H", crc)
+        return frame, payload, crc
 
     # --------------------------------------------------------
     def run(self):
-        if not self.debug:
-            self.calibrate()
-
-        print(f"[Leader] Sending UDP -> {HOST_IP}:{HOST_PORT} at {SAMPLE_RATE_HZ} Hz")
+        self.calibrate()
+        print(f"[Leader] UDP → {HOST_IP}:{HOST_PORT} @ {SAMPLE_RATE_HZ} Hz")
 
         try:
             while True:
                 t0 = time.time()
 
-                if not self.debug:
-                    self.read_encoders()
-
-                frame = self.build_frame()
+                self.read_encoders()
+                frame, payload, crc = self.build_frame()
                 self.socket.sendto(frame, (HOST_IP, HOST_PORT))
+
+                # ---------- DEBUG PRINT ----------
+                if self.debug:
+                    self.print_counter += 1
+                    if self.print_counter % 20 == 0:
+                        angles_deg = [a * 180.0 / math.pi for a in self.last_angles]
+                        print("\n[TX PACKET]")
+                        print(f"  angles (deg): {[f'{a:+7.2f}' for a in angles_deg]}")
+                        print(f"  vels   (rad/s): {[f'{v:+7.3f}' for v in self.last_vel]}")
+                        print(f"  payload_len: {len(payload)}")
+                        print(f"  crc: 0x{crc:04X}")
+                        print(f"  raw[0:16]: {binascii.hexlify(frame[:16]).decode()}")
 
                 dt = time.time() - t0
                 sleep_t = DT - dt
@@ -192,7 +201,8 @@ class BILKLeader:
 # ============================================================
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--debug", action="store_true",
+                        help="Print transmitted packets (does NOT disable encoders)")
     args = parser.parse_args()
 
     leader = BILKLeader(debug=args.debug)
